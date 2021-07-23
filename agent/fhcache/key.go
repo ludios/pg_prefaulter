@@ -18,8 +18,8 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/joyent/pg_prefaulter/agent/structs"
-	"github.com/joyent/pg_prefaulter/pg"
+	"github.com/bschofield/pg_prefaulter/agent/structs"
+	"github.com/bschofield/pg_prefaulter/pg"
 )
 
 // _Key is a comparable forward lookup key.  These values almost certainly need

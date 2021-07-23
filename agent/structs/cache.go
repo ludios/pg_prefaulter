@@ -13,7 +13,7 @@
 
 package structs
 
-import "github.com/joyent/pg_prefaulter/pg"
+import "github.com/bschofield/pg_prefaulter/pg"
 
 // IOCacheKey contains the forward lookup information for a given relation file.
 // IOCacheKey is a

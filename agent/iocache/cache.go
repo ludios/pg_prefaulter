@@ -19,11 +19,10 @@ import (
 	"time"
 
 	"github.com/bluele/gcache"
-	cgm "github.com/circonus-labs/circonus-gometrics"
-	"github.com/joyent/pg_prefaulter/agent/fhcache"
-	"github.com/joyent/pg_prefaulter/agent/structs"
-	"github.com/joyent/pg_prefaulter/config"
-	"github.com/joyent/pg_prefaulter/lib"
+	"github.com/bschofield/pg_prefaulter/agent/fhcache"
+	"github.com/bschofield/pg_prefaulter/agent/structs"
+	"github.com/bschofield/pg_prefaulter/config"
+	"github.com/bschofield/pg_prefaulter/lib"
 	log "github.com/rs/zerolog/log"
 )
 
@@ -37,10 +36,9 @@ import (
 // d) sized sufficiently large so that we can spend our time faulting in pages
 //    vs performing cache hits.
 type IOCache struct {
-	ctx     context.Context
-	wg      sync.WaitGroup
-	metrics *cgm.CirconusMetrics
-	cfg     *config.IOCacheConfig
+	ctx context.Context
+	wg  sync.WaitGroup
+	cfg *config.IOCacheConfig
 
 	purgeLock sync.Mutex
 	c         gcache.Cache
@@ -48,10 +46,9 @@ type IOCache struct {
 }
 
 // New creates a new IOCache.
-func New(ctx context.Context, cfg *config.Config, metrics *cgm.CirconusMetrics, fhc *fhcache.FileHandleCache) (*IOCache, error) {
+func New(ctx context.Context, cfg *config.Config, fhc *fhcache.FileHandleCache) (*IOCache, error) {
 	ioc := &IOCache{
 		ctx:     ctx,
-		metrics: metrics,
 		cfg:     &cfg.IOCacheConfig,
 		fhCache: fhc,
 	}
@@ -73,8 +70,6 @@ func New(ctx context.Context, cfg *config.Config, metrics *cgm.CirconusMetrics, 
 						return
 					}
 
-					start := time.Now()
-
 					if err := ioc.fhCache.PrefaultPage(ioReq); err != nil {
 						// If we had a problem prefaulting in the WAL file, for whatever
 						// reason, attempt to remove it from the cache.
@@ -84,11 +79,7 @@ func New(ctx context.Context, cfg *config.Config, metrics *cgm.CirconusMetrics, 
 							Uint64("database", uint64(ioReq.Database)).
 							Uint64("relation", uint64(ioReq.Relation)).
 							Uint64("block", uint64(ioReq.Block)).Msg("unable to prefault page")
-					} else {
-						ioc.metrics.Increment(config.MetricsPrefaultCount)
 					}
-
-					ioc.metrics.RecordValue(config.MetricsSysPreadLatency, float64(time.Now().Sub(start)/time.Millisecond))
 				}
 			}
 		}(ioWorker)

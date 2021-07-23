@@ -17,9 +17,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joyent/pg_prefaulter/agent"
-	"github.com/joyent/pg_prefaulter/buildtime"
-	"github.com/joyent/pg_prefaulter/config"
+	"github.com/bschofield/pg_prefaulter/agent"
+	"github.com/bschofield/pg_prefaulter/buildtime"
+	"github.com/bschofield/pg_prefaulter/config"
 	"github.com/pkg/errors"
 	log "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"

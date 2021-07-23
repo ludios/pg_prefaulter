@@ -19,17 +19,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"path"
 	"strconv"
 	"strings"
-	"path"
 	"time"
 
 	"github.com/alecthomas/units"
+	"github.com/bschofield/pg_prefaulter/agent/metrics"
+	"github.com/bschofield/pg_prefaulter/agent/proc"
+	"github.com/bschofield/pg_prefaulter/config"
+	"github.com/bschofield/pg_prefaulter/pg"
 	"github.com/jackc/pgx"
-	"github.com/joyent/pg_prefaulter/agent/metrics"
-	"github.com/joyent/pg_prefaulter/agent/proc"
-	"github.com/joyent/pg_prefaulter/config"
-	"github.com/joyent/pg_prefaulter/pg"
 	"github.com/pkg/errors"
 	log "github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
@@ -175,10 +175,6 @@ func (a *Agent) getWALFilesDB() (pg.WALFiles, error) {
 	}
 
 	var numWALFiles uint64
-	defer func() {
-		a.metrics.Add(metrics.DBWALCount, numWALFiles)
-		metrics.DBStats.NumWALFiles.Set(int64(numWALFiles))
-	}()
 
 	func() {
 		// If the timeline changed, purge the walCache assuming we're going to need
@@ -191,8 +187,6 @@ func (a *Agent) getWALFilesDB() (pg.WALFiles, error) {
 			}
 			a.lastTimelineID = timelineID
 		}
-		a.metrics.Set(metrics.DBTimelineID, uint64(timelineID))
-		metrics.DBStats.TimelineID.Set(int64(timelineID))
 	}()
 
 	walFiles := make(pg.WALFiles, 0, len(oldLSNs))
@@ -222,8 +216,6 @@ func (a *Agent) getWALFilesDB() (pg.WALFiles, error) {
 		walFiles = append(walFiles, predictedWALFiles...)
 	}
 
-	a.metrics.SetTextValue(proc.MetricsWALLookupMode, "db")
-
 	return walFiles, nil
 }
 
@@ -239,8 +231,6 @@ func (a *Agent) initDBPool(cfg *config.Config) (err error) {
 		}
 
 		log.Debug().Uint32("backend-pid", conn.PID()).Str("version", version).Msg("established DB connection")
-
-		a.metrics.SetTextValue(metrics.DBVersionPG, version)
 
 		return nil
 	}
@@ -262,10 +252,6 @@ const (
 func (a *Agent) queryLag(lagQuery _QueryLag) (units.Base2Bytes, error) {
 	// FIXME(seanc@): units.Base2Bytes is an int64
 	const unknownLag = units.Base2Bytes(math.MaxInt64)
-
-	// Log whether or not we're connected or not
-	var connectedState _DBConnectionState
-	defer func() { a.metrics.SetTextValue(metrics.DBConnectionStateName, connectedState.String()) }()
 
 	var sql string
 	switch lagQuery {
@@ -295,40 +281,10 @@ func (a *Agent) queryLag(lagQuery _QueryLag) (units.Base2Bytes, error) {
 		}
 
 		numRows++
-
-		// Record useful stats that will be emitted in the logs
-		metrics.DBStats.SenderState.Set(senderState)
-		metrics.DBStats.PeerSyncState.Set(syncState)
-		metrics.DBStats.DurabilityLagBytes.Set(int64(units.Base2Bytes(durabilityLagBytes)))
-		metrics.DBStats.FlushLagBytes.Set(int64(units.Base2Bytes(flushLagBytes)))
-		metrics.DBStats.VisibilityLagBytes.Set(int64(units.Base2Bytes(visibilityLagBytes)))
-		metrics.DBStats.VisibilityLagMs.Set(int64(time.Duration(visibilityLagMs) * (time.Second / time.Millisecond)))
-
-		// Only record values that actually change.  Don't record metrics that are
-		// missing on a shard member.
-		switch lagQuery {
-		case _QueryLagPrimary:
-			a.metrics.Gauge(metrics.DBLagDurabilityBytes, durabilityLagBytes)
-			a.metrics.Gauge(metrics.DBLagFlushBytes, flushLagBytes)
-		case _QueryLagFollower:
-		}
-
-		a.metrics.Gauge(metrics.DBLagVisibilityBytes, visibilityLagBytes)
-		a.metrics.Gauge(metrics.DBLagVisibilityMs, visibilityLagMs)
-		a.metrics.SetTextValue(metrics.DBPeerSyncState, syncState)
-		a.metrics.SetTextValue(metrics.DBSenderState, senderState)
 	}
 
 	if rows.Err() != nil {
 		return unknownLag, errors.Wrap(err, "unable to process lag")
-	}
-
-	if numRows == 0 {
-		connectedState = _DBConnectionStateDisconnected
-		metrics.DBStats.ConnectionState.Set(_DBConnectionStateDisconnected.String())
-	} else {
-		connectedState = _DBConnectionStateConnected
-		metrics.DBStats.ConnectionState.Set(_DBConnectionStateConnected.String())
 	}
 
 	return units.Base2Bytes(visibilityLagBytes), nil
@@ -473,7 +429,7 @@ func (a *Agent) getPostgresVersion(pgDataPath string) (pgMajor uint64, err error
 
 	var pgVersionString string
 	if first < 10 {
-		second := parts[1];
+		second := parts[1]
 		pgVersionString = fmt.Sprintf("%d%s00", (first * 10), second)
 	} else {
 		pgVersionString = fmt.Sprintf("%d0000", first)

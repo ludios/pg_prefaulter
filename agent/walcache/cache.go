@@ -27,17 +27,14 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/alecthomas/units"
 	"github.com/bluele/gcache"
-	cgm "github.com/circonus-labs/circonus-gometrics"
-	"github.com/joyent/pg_prefaulter/agent/iocache"
-	"github.com/joyent/pg_prefaulter/agent/metrics"
-	"github.com/joyent/pg_prefaulter/agent/structs"
-	"github.com/joyent/pg_prefaulter/config"
-	"github.com/joyent/pg_prefaulter/lib"
-	"github.com/joyent/pg_prefaulter/pg"
+	"github.com/bschofield/pg_prefaulter/agent/iocache"
+	"github.com/bschofield/pg_prefaulter/agent/structs"
+	"github.com/bschofield/pg_prefaulter/config"
+	"github.com/bschofield/pg_prefaulter/lib"
+	"github.com/bschofield/pg_prefaulter/pg"
 	"github.com/pkg/errors"
 	log "github.com/rs/zerolog/log"
 )
@@ -84,8 +81,7 @@ type WALCache struct {
 	inFlightCond     *sync.Cond
 	inFlightWALFiles map[pg.WALFilename]struct{}
 
-	re      *regexp.Regexp
-	metrics *cgm.CirconusMetrics
+	re *regexp.Regexp
 }
 
 var (
@@ -94,14 +90,13 @@ var (
 )
 
 func New(pgConnCtxAcquirer ConnContextAcquirer, shutdownCtx context.Context,
-	cfg *config.Config, circMetrics *cgm.CirconusMetrics,
+	cfg *config.Config,
 	ioCache *iocache.IOCache, walTranslations *pg.WALTranslations) (*WALCache, error) {
 	walWorkers := pg.NumOldLSNs * int(math.Ceil(float64(cfg.ReadaheadBytes)/float64(pg.WALSegmentSize)))
 
 	wc := &WALCache{
 		pgConnCtxAcquirer: pgConnCtxAcquirer,
 		shutdownCtx:       shutdownCtx,
-		metrics:           circMetrics,
 		cfg:               &cfg.WALCacheConfig,
 		walTranslations:   walTranslations,
 
@@ -136,28 +131,18 @@ func New(pgConnCtxAcquirer ConnContextAcquirer, shutdownCtx context.Context,
 						return
 					}
 
-					start := time.Now()
-
 					numConcurrentWALLock.Lock()
 					numConcurrentWALs++
-					wc.metrics.Gauge(metrics.WALNumConcurrentWALs, numConcurrentWALs)
-					wc.metrics.RecordValue(metrics.WALNumConcurrentWALs, float64(numConcurrentWALs))
-					metrics.WALStats.NumConcurrentWALs.Set(numConcurrentWALs)
 					numConcurrentWALLock.Unlock()
 
 					if err := wc.prefaultWALFile(walFile); err != nil {
 						// If we had a problem prefaulting in the WAL file, for whatever
 						// reason, attempt to remove it from the cache.
 						wc.c.Remove(walFile)
-					} else {
-						wc.metrics.Increment(config.MetricsWALFaultCount)
 					}
 
 					numConcurrentWALLock.Lock()
 					numConcurrentWALs--
-					wc.metrics.Gauge(metrics.WALNumConcurrentWALs, numConcurrentWALs)
-					wc.metrics.RecordValue(metrics.WALNumConcurrentWALs, float64(numConcurrentWALs))
-					metrics.WALStats.NumConcurrentWALs.Set(numConcurrentWALs)
 					numConcurrentWALLock.Unlock()
 
 					// Inserts into wc.inFlightWALFile happen in FaultWALFile()
@@ -165,8 +150,6 @@ func New(pgConnCtxAcquirer ConnContextAcquirer, shutdownCtx context.Context,
 					delete(wc.inFlightWALFiles, walFile)
 					wc.inFlightCond.Broadcast()
 					wc.inFlightLock.Unlock()
-
-					wc.metrics.Gauge(config.MetricsWALFaultTime, float64(time.Now().Sub(start)/time.Second))
 				}
 			}
 		}(walWorker)
@@ -436,13 +419,6 @@ func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
 			Uint64("pg_xlogdump-bytes", atomic.LoadUint64(&xlogdumpBytes)).
 			Msg("pg_xlogdump(1) stderr")
 	}
-	wc.metrics.Add(config.MetricsIOCacheHit, atomic.LoadUint64(&ioCacheHit))
-	wc.metrics.Add(config.MetricsIOCacheMiss, atomic.LoadUint64(&ioCacheMiss))
-	wc.metrics.Add(config.MetricsXLogDumpLen, atomic.LoadUint64(&xlogdumpBytes))
-	wc.metrics.Add(config.MetricsXLogDumpBlocksMatched, atomic.LoadUint64(&blocksMatched))
-	wc.metrics.Add(config.MetricsXLogDumpLinesMatched, atomic.LoadUint64(&linesMatched))
-	wc.metrics.Add(config.MetricsXLogDumpLinesScanned, atomic.LoadUint64(&linesScanned))
-	wc.metrics.Add(config.MetricsXLogPrefaulted, atomic.LoadUint64(&walFilesProcessed))
 
 	if waitErr == nil {
 		return nil

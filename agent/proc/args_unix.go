@@ -24,16 +24,15 @@ import (
 	"strconv"
 	"strings"
 
-	cgm "github.com/circonus-labs/circonus-gometrics"
-	"github.com/joyent/pg_prefaulter/pg"
+	"github.com/bschofield/pg_prefaulter/pg"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
 
 // FindWALFileFromPIDArgs searches a slice of PIDs to find the WAL filename
 // being currently processed.
-func FindWALFileFromPIDArgs(ctx context.Context, pids []PID, metrics *cgm.CirconusMetrics) (pg.WALFilename, error) {
-	return findWALFileFromPIDArgsViaPS(ctx, pids, metrics)
+func FindWALFileFromPIDArgs(ctx context.Context, pids []PID) (pg.WALFilename, error) {
+	return findWALFileFromPIDArgsViaPS(ctx, pids)
 }
 
 // $ ps -o command -p 13635,13636,13637,35959
@@ -46,7 +45,7 @@ var psRE = regexp.MustCompile(`^postgres: startup [process]*[\s]+recovering[\s]+
 
 // findWALFileFromPIDArgsViaPS searches a slice of PIDs to find the WAL filename
 // being currently processed by using the ps(1) command.
-func findWALFileFromPIDArgsViaPS(ctx context.Context, pids []PID, metrics *cgm.CirconusMetrics) (pg.WALFilename, error) {
+func findWALFileFromPIDArgsViaPS(ctx context.Context, pids []PID) (pg.WALFilename, error) {
 	pidStr := make([]string, len(pids))
 	for i, pid := range pids {
 		pidStr[i] = strconv.FormatUint(uint64(pid), 10)
@@ -67,13 +66,12 @@ func findWALFileFromPIDArgsViaPS(ctx context.Context, pids []PID, metrics *cgm.C
 	}
 
 	var walSegment string
-	re := psRE.Copy()
 	scanner := bufio.NewScanner(bytes.NewReader(psOut))
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		md := re.FindStringSubmatch(line)
-		if md != nil && len(md) == 2 {
+		md := psRE.FindStringSubmatch(line)
+		if len(md) == 2 {
 			walSegment = md[1]
 			break
 		}
@@ -86,6 +84,5 @@ func findWALFileFromPIDArgsViaPS(ctx context.Context, pids []PID, metrics *cgm.C
 	log.Debug().Str("walfile", string(walSegment)).
 		Msg("found WAL segment from ps(1)")
 
-	metrics.SetTextValue(MetricsWALLookupMode, "ps(1)")
 	return pg.WALFilename(walSegment), nil
 }

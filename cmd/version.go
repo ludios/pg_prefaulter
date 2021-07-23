@@ -16,7 +16,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/joyent/pg_prefaulter/buildtime"
+	"github.com/bschofield/pg_prefaulter/buildtime"
 	"github.com/spf13/cobra"
 )
 

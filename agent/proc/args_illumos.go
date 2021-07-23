@@ -26,8 +26,7 @@ import (
 	"regexp"
 	"strconv"
 
-	cgm "github.com/circonus-labs/circonus-gometrics"
-	"github.com/joyent/pg_prefaulter/pg"
+	"github.com/bschofield/pg_prefaulter/pg"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -42,7 +41,7 @@ var procRE = regexp.MustCompile(`^postgres: startup [process]*[\s]+recovering[\s
 
 // FindWALFileFromPIDArgs searches a slice of PIDs to find the WAL filename
 // being currently processed.
-func FindWALFileFromPIDArgs(ctx context.Context, pids []PID, metrics *cgm.CirconusMetrics) (walFilename pg.WALFilename, err error) {
+func FindWALFileFromPIDArgs(ctx context.Context, pids []PID) (walFilename pg.WALFilename, err error) {
 	// Try getting the WAL Filename by sampling the PID args out of /proc.  If
 	// this fails because the version of Illumos doesn't have this functionality,
 	// proceed to trying to extract this information from pargs(1).  If that

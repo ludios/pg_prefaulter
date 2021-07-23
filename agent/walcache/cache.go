@@ -138,6 +138,7 @@ func New(pgConnCtxAcquirer ConnContextAcquirer, shutdownCtx context.Context,
 					if err := wc.prefaultWALFile(walFile); err != nil {
 						// If we had a problem prefaulting in the WAL file, for whatever
 						// reason, attempt to remove it from the cache.
+						log.Warn().AnErr("prefault failed", err)
 						wc.c.Remove(walFile)
 					}
 

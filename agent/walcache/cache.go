@@ -138,7 +138,7 @@ func New(pgConnCtxAcquirer ConnContextAcquirer, shutdownCtx context.Context,
 					if err := wc.prefaultWALFile(walFile); err != nil {
 						// If we had a problem prefaulting in the WAL file, for whatever
 						// reason, attempt to remove it from the cache.
-						log.Warn().AnErr("prefault failed", err)
+						log.Warn().Err(err).Msg("prefault failed")
 						wc.c.Remove(walFile)
 					}
 
@@ -259,6 +259,8 @@ func (wc *WALCache) Wait() {
 // from pg_waldump(1) is then turned into IO requests that are picked up and
 // handled by the ioCache.
 func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
+
+	log.Debug().Str("walfile", string(walFile)).Msg("prefaulting")
 
 	var blocksMatched, linesMatched, linesScanned, walFilesProcessed, waldumpBytes uint64
 	var ioCacheHit, ioCacheMiss uint64

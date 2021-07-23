@@ -87,28 +87,7 @@ already loaded into the OS'es filesystem cache.
 			switch logFmt {
 			case config.LogFormatZerolog:
 				zlog = zerolog.New(logWriter).With().Timestamp().Logger()
-			case config.LogFormatBunyan:
-				hostname, err := os.Hostname()
-				switch {
-				case err != nil:
-					return errors.Wrap(err, "unable to determine the hostname")
-				case hostname == "":
-					return fmt.Errorf("unable to use bunyan logging with an empty hostname")
-				}
 
-				zerolog.LevelFieldName = "level"
-
-				zerolog.TimeFieldFormat = config.LogTimeFormatBunyan
-				zerolog.TimestampFieldName = "time"
-				zerolog.MessageFieldName = "msg"
-
-				zlog = zerolog.New(logWriter).With().
-					Timestamp().
-					Int("v", 0). // Bunyan version
-					Str("name", buildtime.PROGNAME).
-					Str("hostname", hostname).
-					Int("pid", os.Getpid()).
-					Logger()
 			case config.LogFormatHuman:
 				useColor := viper.GetBool(config.KeyAgentUseColor)
 				w := zerolog.ConsoleWriter{
@@ -116,6 +95,7 @@ already loaded into the OS'es filesystem cache.
 					NoColor: !useColor,
 				}
 				zlog = zerolog.New(w).With().Timestamp().Logger()
+
 			default:
 				return fmt.Errorf("unsupported log format: %q", logFmt)
 			}
@@ -204,7 +184,7 @@ func init() {
 			key         = config.KeyAgentLogFormat
 			longName    = "log-format"
 			shortName   = "F"
-			description = `Specify the log format ("auto", "zerolog", "human", or "bunyan")`
+			description = `Specify the log format ("auto", "zerolog" or "human")`
 		)
 
 		defaultValue := config.LogFormatAuto.String()

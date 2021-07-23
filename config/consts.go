@@ -60,9 +60,6 @@ const (
 	// zeros so that we get fixed-width logging.
 	LogTimeFormat = "2006-01-02T15:04:05.000000000Z07:00"
 
-	// 8601 Extended Format: YYYY-MM-DDTHH:mm:ss.sssZ
-	LogTimeFormatBunyan = "2006-01-02T15:04:05.000Z"
-
 	StatsInterval = 60 * time.Second
 )
 
@@ -71,7 +68,6 @@ type LogFormat uint
 const (
 	LogFormatAuto LogFormat = iota
 	LogFormatZerolog
-	LogFormatBunyan
 	LogFormatHuman
 )
 
@@ -81,8 +77,6 @@ func (f LogFormat) String() string {
 		return "auto"
 	case LogFormatZerolog:
 		return "zerolog"
-	case LogFormatBunyan:
-		return "bunyan"
 	case LogFormatHuman:
 		return "human"
 	default:
@@ -96,8 +90,6 @@ func LogLevelParse(s string) (LogFormat, error) {
 		return LogFormatAuto, nil
 	case "json", "zerolog":
 		return LogFormatZerolog, nil
-	case "bunyan":
-		return LogFormatBunyan, nil
 	case "human":
 		return LogFormatHuman, nil
 	default:

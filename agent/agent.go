@@ -259,9 +259,7 @@ func (a *Agent) Stop() {
 // Wait blocks until shutdown
 func (a *Agent) Wait() error {
 	log.Debug().Msg("Starting wait")
-	select {
-	case <-a.shutdownCtx.Done():
-	}
+	<-a.shutdownCtx.Done()
 
 	// Drain work from the WAL cache before returning
 	a.walCache.Wait()

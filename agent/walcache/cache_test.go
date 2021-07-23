@@ -56,8 +56,7 @@ func TestPGWalDumpRE(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		xlogRE := pgWalDumpRE.Copy()
-		submatches := xlogRE.FindAllSubmatch(test.input, -1)
+		submatches := pgWalDumpRE.FindAllSubmatch(test.input, -1)
 		if submatches == nil && !test.fail {
 			t.Fatalf("%d failed to match test: %q", i, test.input)
 		} else if test.fail {

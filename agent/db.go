@@ -297,31 +297,6 @@ const (
 	CurrentXLogFlushLocation
 )
 
-// queryLSN queries a specific LSN from the database.
-func (a *Agent) queryLSN(lsnQuery LSNQuery) (l pg.LSN, err error) {
-	// sql must return one column with an LSN type as the result
-	var sql string
-	switch lsnQuery {
-	case LastXLogReplayLocation:
-		sql = "SELECT pg_last_xlog_replay_location()"
-	case CurrentXLogFlushLocation:
-		sql = "SELECT pg_current_xlog_flush_location()"
-	default:
-		panic(fmt.Sprintf("unsupported query: %v", lsnQuery))
-	}
-
-	var lsnStr string
-	if err := a.pool.QueryRowEx(a.shutdownCtx, sql, nil).Scan(&lsnStr); err != nil {
-		return pg.InvalidLSN, errors.Wrapf(err, "unable to query DB: %v", lsnQuery)
-	}
-
-	if l, err = pg.ParseLSN(lsnStr); err != nil {
-		return pg.InvalidLSN, errors.Wrapf(err, "unable to parse LSN: %q", lsnStr)
-	}
-
-	return l, nil
-}
-
 // predictDBWALFilenames guesses what the filenames are going to be in advance
 // of PostgreSQL naievely processing a WAL file.  Use walFile as the seed
 // filename to indicate where we are in the WAL stream and forecast N WAL

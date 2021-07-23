@@ -107,9 +107,9 @@ func New(pgConnCtxAcquirer ConnContextAcquirer, shutdownCtx context.Context,
 
 	switch cfg.WALCacheConfig.Mode {
 	case config.WALModeXLog:
-		wc.re = waldumpRE.Copy()
+		wc.re = waldumpRE
 	case config.WALModePG:
-		wc.re = pgWalDumpRE.Copy()
+		wc.re = pgWalDumpRE
 	default:
 		panic(fmt.Sprintf("unsupported WALConfig.mode: %v", cfg.WALCacheConfig.Mode))
 	}
@@ -214,10 +214,7 @@ func (wc *WALCache) InProcess(walFilename pg.WALFilename) bool {
 	}
 
 	_, err := wc.c.GetIFPresent(walFilename)
-	if err == gcache.KeyNotFoundError {
-		return false
-	}
-	return true
+	return (err != gcache.KeyNotFoundError)
 }
 
 // Wait blocks until the WAL File is no longer in flight.
@@ -233,7 +230,7 @@ func (wc *WALCache) WaitWALFile(walFilename pg.WALFilename) error {
 		wc.inFlightCond.Wait()
 	}
 
-	return fmt.Errorf("%d spurious wakeups achieved while waiting for %+q", wc.inFlightCond.Wait, walFilename)
+	return fmt.Errorf("%d spurious wakeups achieved while waiting for %+q", maxWakeups, walFilename)
 }
 
 // Purge purges the WALCache of its cache (and all downstream caches)
@@ -261,7 +258,7 @@ func (wc *WALCache) Wait() {
 // from pg_waldump(1) is then turned into IO requests that are picked up and
 // handled by the ioCache.
 func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
-	re := wc.re.Copy()
+
 	var blocksMatched, linesMatched, linesScanned, walFilesProcessed, waldumpBytes uint64
 	var ioCacheHit, ioCacheMiss uint64
 
@@ -294,17 +291,17 @@ func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
 
 		for scanner.Scan() {
 			line := scanner.Bytes()
-			waldumpBytes = atomic.AddUint64(&waldumpBytes, uint64(len(line)))
-			linesScanned = atomic.AddUint64(&linesScanned, 1)
-			submatches := re.FindAllSubmatch(line, -1)
+			atomic.AddUint64(&waldumpBytes, uint64(len(line)))
+			atomic.AddUint64(&linesScanned, 1)
+			submatches := wc.re.FindAllSubmatch(line, -1)
 			if submatches == nil {
 				continue
 			}
 
-			linesMatched = atomic.AddUint64(&linesMatched, 1)
+			atomic.AddUint64(&linesMatched, 1)
 
 			for _, matches := range submatches {
-				blocksMatched = atomic.AddUint64(&blocksMatched, 1)
+				atomic.AddUint64(&blocksMatched, 1)
 				tablespace, err := strconv.ParseUint(string(matches[1]), 10, 64)
 				if err != nil {
 					log.Error().Err(err).Str("input", string(matches[1])).Msg("unable to convert tablespace")
@@ -368,10 +365,10 @@ func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
 				_, err = wc.ioCache.GetIFPresent(ioCacheKey)
 				switch {
 				case err == nil:
-					ioCacheHit = atomic.AddUint64(&ioCacheHit, 1)
+					atomic.AddUint64(&ioCacheHit, 1)
 				case err == gcache.KeyNotFoundError:
 					// cache miss, an IO has been scheduled in the background.
-					ioCacheMiss = atomic.AddUint64(&ioCacheMiss, 1)
+					atomic.AddUint64(&ioCacheMiss, 1)
 				case err != nil:
 					log.Debug().Err(err).Msg("iocache prefaultWALFile()")
 				}
@@ -380,7 +377,7 @@ func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
 
 		// Declare victory if we fault at least one block
 		if atomic.LoadUint64(&ioCacheMiss)+atomic.LoadUint64(&ioCacheHit) > 0 {
-			walFilesProcessed = atomic.AddUint64(&walFilesProcessed, uint64(1))
+			atomic.AddUint64(&walFilesProcessed, uint64(1))
 		}
 	}()
 

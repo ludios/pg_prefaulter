@@ -11,19 +11,4 @@
 #user = "postgres"
 
 [postgresql.xlog]
-#pg_xlogdump-path = "/usr/local/bin/pg_xlogdump"
-
-[circonus]
-#enabled = true
-
-[circonus.api]
-# token is a required value if circonus.enabled=true
-#token = ""
-
-[circonus.broker]
-# id should be set to "35" (the public HTTPTrap broker) if you have enterprise
-# brokers configured in your account.
-#id = 35
-
-[circonus.check]
-#tags = "dc1:mydc"
+#pg_waldump-path = "/usr/local/bin/pg_waldump"

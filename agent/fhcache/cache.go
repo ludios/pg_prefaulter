@@ -20,12 +20,11 @@ import (
 	"time"
 
 	"github.com/bluele/gcache"
-	cgm "github.com/circonus-labs/circonus-gometrics"
-	"github.com/joyent/pg_prefaulter/agent/metrics"
-	"github.com/joyent/pg_prefaulter/agent/structs"
-	"github.com/joyent/pg_prefaulter/config"
-	"github.com/joyent/pg_prefaulter/lib"
-	"github.com/joyent/pg_prefaulter/pg"
+	"github.com/bschofield/pg_prefaulter/agent/metrics"
+	"github.com/bschofield/pg_prefaulter/agent/structs"
+	"github.com/bschofield/pg_prefaulter/config"
+	"github.com/bschofield/pg_prefaulter/lib"
+	"github.com/bschofield/pg_prefaulter/pg"
 	"github.com/pkg/errors"
 	log "github.com/rs/zerolog/log"
 )
@@ -42,20 +41,18 @@ var (
 // FileHandleCache is a file descriptor cache to prevent re-open(2)'ing files
 // continually.
 type FileHandleCache struct {
-	ctx     context.Context
-	metrics *cgm.CirconusMetrics
-	cfg     *config.FHCacheConfig
+	ctx context.Context
+	cfg *config.FHCacheConfig
 
 	purgeLock sync.Mutex
 	c         gcache.Cache
 }
 
 // New creates a new FileHandleCache
-func New(ctx context.Context, cfg *config.Config, metrics *cgm.CirconusMetrics) (*FileHandleCache, error) {
+func New(ctx context.Context, cfg *config.Config) (*FileHandleCache, error) {
 	fhc := &FileHandleCache{
-		ctx:     ctx,
-		metrics: metrics,
-		cfg:     &cfg.FHCacheConfig,
+		ctx: ctx,
+		cfg: &cfg.FHCacheConfig,
 	}
 
 	fhc.c = gcache.New(int(fhc.cfg.Size)).
@@ -80,8 +77,6 @@ func New(ctx context.Context, cfg *config.Config, metrics *cgm.CirconusMetrics) 
 				log.Panic().Msgf("bad, evicting something not a file handle: %+v", fhCacheValue)
 			}
 			defer fhCacheValue.close()
-
-			fhc.metrics.Increment(config.MetricsSysCloseCount)
 		}).
 		PurgeVisitorFunc(func(fhCacheKeyRaw, fhCacheValueRaw interface{}) {
 			fhCacheValue, ok := fhCacheValueRaw.(*_Value)
@@ -89,8 +84,6 @@ func New(ctx context.Context, cfg *config.Config, metrics *cgm.CirconusMetrics) 
 				log.Panic().Msgf("bad, purging something not a file handle: %+v", fhCacheValue)
 			}
 			defer fhCacheValue.close()
-
-			fhc.metrics.Increment(config.MetricsSysCloseCount)
 		}).
 		Build()
 
@@ -123,29 +116,23 @@ func (fhc *FileHandleCache) PrefaultPage(ioCacheKey structs.IOCacheKey) error {
 	numConcurrentReadLock.Lock()
 	numConcurrentReads++
 	metrics.FHStats.NumConcurrentReads.Set(numConcurrentReads)
-	fhc.metrics.Gauge(metrics.FHNumConcurrentReads, numConcurrentReads)
-	fhc.metrics.RecordValue(metrics.FHNumConcurrentReads, float64(numConcurrentReads))
 	numConcurrentReadLock.Unlock()
 	defer func() {
 		numConcurrentReadLock.Lock()
 		numConcurrentReads--
-		fhc.metrics.Gauge(metrics.FHNumConcurrentReads, numConcurrentReads)
-		fhc.metrics.RecordValue(metrics.FHNumConcurrentReads, float64(numConcurrentReads))
 		metrics.FHStats.NumConcurrentReads.Set(numConcurrentReads)
 		numConcurrentReadLock.Unlock()
 	}()
 
 	var buf [pg.HeapPageSize]byte
 	pageNum := pg.HeapSegmentPageNum(ioCacheKey.Block)
-	n, err := fhcValue.f.ReadAt(buf[:], int64(uint64(pageNum)*uint64(pg.HeapPageSize)))
-	fhc.metrics.Add(config.MetricsSysPreadBytes, uint64(n))
+	_, err = fhcValue.f.ReadAt(buf[:], int64(uint64(pageNum)*uint64(pg.HeapPageSize)))
 	if err != nil {
 		// TODO(seanc@): Figure out why there are any EOFs being returned.  They
 		// seem harmless, but indicate a different problem that requires
 		// investigation.  If the hit rate didn't indicate a high degree of
 		// efficacy, this would require more immediate investigation.
 		if err != io.EOF {
-			fhc.metrics.Increment(config.MetricsXLogDumpErrorCount)
 			return errors.Wrap(err, "unable to pread(2)")
 		}
 
@@ -188,19 +175,14 @@ func (fhc *FileHandleCache) getLocked(ioReq structs.IOCacheKey) (*_Value, error)
 			continue
 		}
 
-		start := time.Now()
 		f, err := value.open(fhc.cfg.PGDataPath)
 		if err != nil {
 			log.Warn().Err(err).Msgf("unable to open relation file: %+v", key)
 			value.lock.Unlock()
 			return nil, errors.Wrapf(err, "unable to re-open file: %+v", value._Key)
 		}
-		end := time.Now()
 		value.f = f
 		value.lock.Unlock()
-
-		fhc.metrics.RecordValue(config.MetricsSysOpenLatency, float64(end.Sub(start)/time.Microsecond))
-		fhc.metrics.Increment(config.MetricsSysOpenCount)
 	}
 }
 

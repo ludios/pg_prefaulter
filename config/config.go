@@ -20,10 +20,9 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
-	cgm "github.com/circonus-labs/circonus-gometrics"
+	"github.com/bschofield/pg_prefaulter/buildtime"
+	"github.com/bschofield/pg_prefaulter/pg"
 	"github.com/jackc/pgx"
-	"github.com/joyent/pg_prefaulter/buildtime"
-	"github.com/joyent/pg_prefaulter/pg"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
@@ -31,13 +30,11 @@ import (
 )
 
 type (
-	DBPool  = pgx.ConnPoolConfig
-	Metrics = cgm.Config
+	DBPool = pgx.ConnPoolConfig
 )
 
 type Config struct {
 	DBPool
-	*Metrics
 
 	Agent
 	FHCacheConfig
@@ -77,46 +74,10 @@ type WALCacheConfig struct {
 	Mode           WALMode
 	ReadaheadBytes units.Base2Bytes
 	PGDataPath     string
-	XLogDumpPath   string
+	WalDumpPath    string
 }
 
 func NewDefault() (cfg *Config, err error) {
-	cmc := &cgm.Config{}
-	if viper.GetBool(KeyCirconusEnabled) {
-		cmc.Interval = "10s"
-		{
-			// FIXME(seanc@): Need a facade that satisfies stdlog.Logger interface, not zerolog/log
-			// cgmlog := log.Logger.With().Str("module", "circonus").Logger()
-			// cmc.Log = cgmlog
-		}
-		cmc.Debug = viper.GetBool(KeyCirconusDebug)
-		cmc.ResetCounters = "false"
-		cmc.ResetGauges = "true"
-		cmc.ResetHistograms = "true"
-		cmc.ResetText = "true"
-
-		cmc.CheckManager.API.TokenKey = viper.GetString(KeyCirconusAPIToken)
-		cmc.CheckManager.API.TokenApp = buildtime.PROGNAME
-		cmc.CheckManager.API.URL = viper.GetString(KeyCirconusAPIURL)
-
-		// Check configuration options
-		cmc.CheckManager.Check.SubmissionURL = viper.GetString(KeyCirconusCheckSubmissionURL)
-		cmc.CheckManager.Check.ID = viper.GetString(KeyCirconusCheckID)
-		cmc.CheckManager.Check.InstanceID = viper.GetString(KeyCirconusCheckInstanceID)
-		cmc.CheckManager.Check.DisplayName = viper.GetString(KeyCirconusCheckDisplayName)
-		cmc.CheckManager.Check.TargetHost = viper.GetString(KeyCirconusCheckTargetHost)
-
-		cmc.CheckManager.Check.SearchTag = strings.ToLower(viper.GetString(KeyCirconusCheckSearchTag))
-		cmc.CheckManager.Check.Secret = viper.GetString(KeyCirconusCheckSecret)
-		cmc.CheckManager.Check.Tags = strings.ToLower(viper.GetString(KeyCirconusCheckTags))
-		cmc.CheckManager.Check.MaxURLAge = viper.GetString(KeyCirconusCheckMaxURLAge)
-		cmc.CheckManager.Check.ForceMetricActivation = viper.GetString(KeyCirconusCheckForceMetricActivation)
-
-		// Broker configuration options
-		cmc.CheckManager.Broker.ID = viper.GetString(KeyCirconusBrokerID)
-		cmc.CheckManager.Broker.SelectTag = strings.ToLower(viper.GetString(KeyCirconusBrokerSelectTag))
-		cmc.CheckManager.Broker.MaxResponseTime = viper.GetString(KeyCirconusBrokerMaxResponseTime)
-	}
 
 	var pgxLogLevel int = pgx.LogLevelInfo
 	switch logLevel := strings.ToUpper(viper.GetString(KeyLogLevel)); logLevel {
@@ -162,6 +123,8 @@ func NewDefault() (cfg *Config, err error) {
 			}
 			fhConfig.MaxOpenFiles = uint(procNumFiles.Cur)
 			fhConfig.Size = fhConfig.MaxOpenFiles - numReservedFDs
+
+			//lint:ignore SA9003 TODO below
 		} else {
 			// TODO(seanc@): Allow a user to set this value manually
 		}
@@ -233,7 +196,7 @@ func NewDefault() (cfg *Config, err error) {
 			walConfig.ReadaheadBytes = readAheadBytes
 		}
 
-		walConfig.XLogDumpPath = viper.GetString(KeyXLogPath)
+		walConfig.WalDumpPath = viper.GetString(KeyXLogPath)
 	}
 
 	return &Config{
@@ -259,7 +222,6 @@ func NewDefault() (cfg *Config, err error) {
 				},
 			},
 		},
-		Metrics: cmc,
 
 		Agent:          agentConfig,
 		FHCacheConfig:  fhConfig,

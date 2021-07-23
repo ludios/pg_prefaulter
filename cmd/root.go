@@ -22,9 +22,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/google/gops/agent"
-	"github.com/joyent/pg_prefaulter/buildtime"
-	"github.com/joyent/pg_prefaulter/config"
+	"github.com/bschofield/pg_prefaulter/buildtime"
+	"github.com/bschofield/pg_prefaulter/config"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -52,7 +51,7 @@ when the filesystem cache is cold, this is problematic for streaming replicas
 because they will lag and fall behind.
 
 ` + buildtime.PROGNAME + `(1) mitigates this serially scheduled IO problem by
-reading WAL entries via pg_xlogdump(1) and performing parallel pread(2) calls in
+reading WAL entries via pg_waldump(1) and performing parallel pread(2) calls in
 order to "pre-fault" the page into the OS's filesystem cache so that when the
 PostgreSQL WAL receiver goes to apply a WAL entry to its heap, the page is
 already loaded into the OS'es filesystem cache.
@@ -88,31 +87,7 @@ already loaded into the OS'es filesystem cache.
 			switch logFmt {
 			case config.LogFormatZerolog:
 				zlog = zerolog.New(logWriter).With().Timestamp().Logger()
-			case config.LogFormatBunyan:
-				hostname, err := os.Hostname()
-				switch {
-				case err != nil:
-					return errors.Wrap(err, "unable to determine the hostname")
-				case hostname == "":
-					return fmt.Errorf("unable to use bunyan logging with an empty hostname")
-				}
 
-				// NOTE(seanc@): Core fields taken from: https:
-				// //www.npmjs.com/package/bunyan#core-fields
-				zerolog.LevelFieldName = "level"
-				zerolog.LogLevelFlags |= zerolog.LogLevelNumeric | zerolog.LogLevelBunyan
-
-				zerolog.TimeFieldFormat = config.LogTimeFormatBunyan
-				zerolog.TimestampFieldName = "time"
-				zerolog.MessageFieldName = "msg"
-
-				zlog = zerolog.New(logWriter).With().
-					Timestamp().
-					Int("v", 0). // Bunyan version
-					Str("name", buildtime.PROGNAME).
-					Str("hostname", hostname).
-					Int("pid", os.Getpid()).
-					Logger()
 			case config.LogFormatHuman:
 				useColor := viper.GetBool(config.KeyAgentUseColor)
 				w := zerolog.ConsoleWriter{
@@ -120,8 +95,9 @@ already loaded into the OS'es filesystem cache.
 					NoColor: !useColor,
 				}
 				zlog = zerolog.New(w).With().Timestamp().Logger()
+
 			default:
-				return fmt.Errorf("unsupported log format: %q")
+				return fmt.Errorf("unsupported log format: %q", logFmt)
 			}
 
 			log.Logger = zlog
@@ -148,18 +124,6 @@ already loaded into the OS'es filesystem cache.
 			return fmt.Errorf("unsupported error level: %q (supported levels: %s)", logLevel,
 				strings.Join([]string{"DEBUG", "INFO", "WARN", "ERROR", "FATAL"}, " "))
 		}
-
-		go func() {
-			if !viper.GetBool(config.KeyGoogleAgentEnable) {
-				log.Debug().Msg("gops(1) agent disabled by request")
-				return
-			}
-
-			log.Debug().Msg("starting gops(1) agent")
-			if err := agent.Listen(nil); err != nil {
-				log.Fatal().Err(err).Msg("unable to start the gops(1) agent thread")
-			}
-		}()
 
 		go func() {
 			if !viper.GetBool(config.KeyPProfEnable) {
@@ -220,7 +184,7 @@ func init() {
 			key         = config.KeyAgentLogFormat
 			longName    = "log-format"
 			shortName   = "F"
-			description = `Specify the log format ("auto", "zerolog", "human", or "bunyan")`
+			description = `Specify the log format ("auto", "zerolog" or "human")`
 		)
 
 		defaultValue := config.LogFormatAuto.String()
@@ -340,20 +304,6 @@ func init() {
 
 	{
 		const (
-			key          = config.KeyGoogleAgentEnable
-			longName     = "enable-agent"
-			shortName    = ""
-			defaultValue = true
-			description  = "Enable the gops(1) agent interface"
-		)
-
-		RootCmd.PersistentFlags().BoolP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
 			key          = config.KeyPProfEnable
 			longName     = "enable-pprof"
 			shortName    = ""
@@ -376,262 +326,6 @@ func init() {
 		)
 
 		RootCmd.PersistentFlags().Uint16P(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusAPIToken
-			longName     = "circonus-api-key"
-			shortName    = "a"
-			defaultValue = ""
-			envVar       = "CIRCONUS_API_TOKEN"
-			description  = "Circonus API token"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.BindEnv(key, envVar)
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key       = config.KeyCirconusAPIURL
-			longName  = "circonus-api-url"
-			shortName = ""
-			// FIXME(seanc@): This should be an exported constant from circonus-gometrics
-			defaultValue = "https://api.circonus.com/v2"
-			envVar       = "CIRCONUS_API_URL"
-			description  = "Circonus API URL"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.BindEnv(key, envVar)
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusBrokerID
-			longName     = "circonus-broker-id"
-			shortName    = ""
-			defaultValue = ""
-			description  = "Circonus Broker ID"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusBrokerMaxResponseTime
-			longName     = "circonus-broker-max-response-time"
-			shortName    = ""
-			defaultValue = "500ms"
-			description  = "Circonus Broker Max Response Time"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusBrokerSelectTag
-			longName     = "circonus-broker-select-tag"
-			shortName    = ""
-			defaultValue = ""
-			description  = "Circonus Broker Select Tag"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusCheckDisplayName
-			longName     = "circonus-check-display-name"
-			shortName    = ""
-			defaultValue = buildtime.PROGNAME
-			description  = "Circonus Check Display Name"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusCheckForceMetricActivation
-			longName     = "circonus-check-force-metric-activation"
-			shortName    = ""
-			defaultValue = "false"
-			description  = "Circonus Check Force Metric Activation"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusCheckID
-			longName     = "circonus-check-id"
-			shortName    = ""
-			defaultValue = ""
-			envVar       = "CIRCONUS_CHECK_ID"
-			description  = "Circonus Check ID"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.BindEnv(key, envVar)
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key         = config.KeyCirconusCheckInstanceID
-			longName    = "circonus-check-instance-id"
-			shortName   = ""
-			description = "Circonus Check Instance ID"
-		)
-		var defaultValue string
-		if hostname, err := os.Hostname(); err == nil {
-			defaultValue = fmt.Sprintf("%s:%s", hostname, buildtime.PROGNAME)
-		}
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusCheckMaxURLAge
-			longName     = "circonus-check-max-url-age"
-			shortName    = ""
-			defaultValue = "5m"
-			description  = "Circonus Check Max URL Age"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key         = config.KeyCirconusCheckSearchTag
-			longName    = "circonus-check-search-tag"
-			shortName   = ""
-			description = "Circonus Check Search Tag"
-		)
-		var defaultValue string = `app:` + buildtime.PROGNAME
-		if hostname, err := os.Hostname(); err == nil {
-			defaultValue = fmt.Sprintf("%s,host:%s", defaultValue, hostname)
-		}
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusCheckSecret
-			longName     = "circonus-check-secret"
-			shortName    = ""
-			defaultValue = ""
-			description  = "Circonus Check Secret"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusCheckSubmissionURL
-			longName     = "circonus-submission-url"
-			shortName    = ""
-			defaultValue = ""
-			envVar       = "CIRCONUS_SUBMISSION_URL"
-			description  = "Circonus Check Submission URL"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.BindEnv(key, envVar)
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusCheckTags
-			longName     = "circonus-check-tags"
-			shortName    = ""
-			defaultValue = `app:` + buildtime.PROGNAME
-			description  = "Circonus Check Tags"
-		)
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key         = config.KeyCirconusCheckTargetHost
-			longName    = "circonus-check-target-host"
-			shortName   = ""
-			description = "Circonus Check Target Host"
-		)
-		var defaultValue string
-		if hostname, err := os.Hostname(); err == nil {
-			defaultValue = hostname
-		}
-
-		RootCmd.PersistentFlags().StringP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusDebug
-			longName     = "circonus-debug"
-			shortName    = ""
-			defaultValue = false
-			description  = "Enable Circonus Debug"
-		)
-
-		RootCmd.PersistentFlags().BoolP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyCirconusEnabled
-			longName     = "circonus-enable-metrics"
-			shortName    = ""
-			defaultValue = true
-			description  = "Enable Circonus metrics"
-		)
-
-		RootCmd.PersistentFlags().BoolP(longName, shortName, defaultValue, description)
 		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
 		viper.SetDefault(key, defaultValue)
 	}

@@ -16,7 +16,7 @@ package pg_test
 import (
 	"testing"
 
-	"github.com/joyent/pg_prefaulter/pg"
+	"github.com/bschofield/pg_prefaulter/pg"
 	"github.com/kylelemons/godebug/pretty"
 )
 

@@ -21,17 +21,14 @@ import (
 	"sync"
 	"time"
 
-	cgm "github.com/circonus-labs/circonus-gometrics"
+	"github.com/bschofield/pg_prefaulter/agent/fhcache"
+	"github.com/bschofield/pg_prefaulter/agent/iocache"
+	"github.com/bschofield/pg_prefaulter/agent/walcache"
+	"github.com/bschofield/pg_prefaulter/buildtime"
+	"github.com/bschofield/pg_prefaulter/config"
+	"github.com/bschofield/pg_prefaulter/lib"
+	"github.com/bschofield/pg_prefaulter/pg"
 	"github.com/jackc/pgx"
-	"github.com/joyent/pg_prefaulter/agent/fhcache"
-	"github.com/joyent/pg_prefaulter/agent/iocache"
-	"github.com/joyent/pg_prefaulter/agent/metrics"
-	"github.com/joyent/pg_prefaulter/agent/proc"
-	"github.com/joyent/pg_prefaulter/agent/walcache"
-	"github.com/joyent/pg_prefaulter/buildtime"
-	"github.com/joyent/pg_prefaulter/config"
-	"github.com/joyent/pg_prefaulter/lib"
-	"github.com/joyent/pg_prefaulter/pg"
 	"github.com/pkg/errors"
 	log "github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
@@ -44,8 +41,6 @@ type Agent struct {
 
 	shutdown    func()
 	shutdownCtx context.Context
-
-	metrics *cgm.CirconusMetrics
 
 	// pgStateLock protects the following values.  lastWALLog and lastTimelineID
 	// are the WAL filename and timeline ID from previous call to queryLastLog()
@@ -66,18 +61,9 @@ type Agent struct {
 
 func New(cfg *config.Config) (a *Agent, err error) {
 	a = &Agent{
-		cfg: &cfg.Agent,
+		cfg:             &cfg.Agent,
 		walTranslations: &pg.WALTranslations{},
 	}
-
-	a.metrics, err = cgm.NewCirconusMetrics(cfg.Metrics)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create a stats agent")
-	}
-	// Emit a handful of constants to reflect what the state of this process is.
-	a.metrics.SetTextValue(metrics.VersionSelfCommit, buildtime.COMMIT)
-	a.metrics.SetTextValue(metrics.VersionSelfDate, buildtime.DATE)
-	a.metrics.SetTextValue(metrics.VersionSelfVersion, buildtime.VERSION)
 
 	a.setupSignals()
 
@@ -86,7 +72,7 @@ func New(cfg *config.Config) (a *Agent, err error) {
 	}
 
 	{
-		fhCache, err := fhcache.New(a.shutdownCtx, cfg, a.metrics)
+		fhCache, err := fhcache.New(a.shutdownCtx, cfg)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize filehandle cache")
 		}
@@ -95,7 +81,7 @@ func New(cfg *config.Config) (a *Agent, err error) {
 	}
 
 	{
-		ioCache, err := iocache.New(a.shutdownCtx, cfg, a.metrics, a.fileHandleCache)
+		ioCache, err := iocache.New(a.shutdownCtx, cfg, a.fileHandleCache)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize IO Cache")
 		}
@@ -104,7 +90,7 @@ func New(cfg *config.Config) (a *Agent, err error) {
 	}
 
 	{
-		walCache, err := walcache.New(a, a.shutdownCtx, cfg, a.metrics, a.ioCache, a.walTranslations)
+		walCache, err := walcache.New(a, a.shutdownCtx, cfg, a.ioCache, a.walTranslations)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize WAL cache")
 		}
@@ -148,16 +134,6 @@ func (a *Agent) Start() {
 
 	go a.handleSignals()
 	go a.startDBStats()
-
-	if viper.GetBool(config.KeyCirconusEnabled) {
-		a.metrics.Start()
-	}
-
-	var dbState _DBState
-	a.metrics.SetTextFunc(metrics.DBState, func() string {
-		return dbState.String()
-	})
-	defer a.metrics.RemoveTextFunc(metrics.DBState)
 
 	// The main event loop for the run command.  The run event loop runs through
 	// the following six steps:
@@ -209,7 +185,7 @@ RETRY:
 
 		// 2) Sleep.  Sleep before purging the WALCache in order to allow processes
 		//    in flight to complete.  If the sleep is not called before the purge,
-		//    it's possible that an in-flight pg_xlogdump(1) would be cancelled
+		//    it's possible that an in-flight pg_waldump(1) would be cancelled
 		//    before it completed a run.  This means that during an unexpected
 		//    shutdown, FDs won't be closed for up to config.KeyPGPollInterval.
 		if !sleepBetweenIterations {
@@ -264,7 +240,6 @@ RETRY:
 func (a *Agent) Stop() {
 	a.stopSignalHandler()
 	a.shutdown()
-	a.metrics.Flush()
 
 	a.pgStateLock.Lock()
 	defer a.pgStateLock.Unlock()
@@ -284,9 +259,7 @@ func (a *Agent) Stop() {
 // Wait blocks until shutdown
 func (a *Agent) Wait() error {
 	log.Debug().Msg("Starting wait")
-	select {
-	case <-a.shutdownCtx.Done():
-	}
+	<-a.shutdownCtx.Done()
 
 	// Drain work from the WAL cache before returning
 	a.walCache.Wait()
@@ -294,7 +267,7 @@ func (a *Agent) Wait() error {
 	return nil
 }
 
-func (a *Agent) setWALTranslations() (error) {
+func (a *Agent) setWALTranslations() error {
 	pgDataPath := viper.GetString(config.KeyPGData)
 	pgVersion, err := a.getPostgresVersion(pgDataPath)
 
@@ -317,8 +290,6 @@ func (a *Agent) setWALTranslations() (error) {
 // FIXME(seanc@): Create a WALFaulter interface that can be DB-backed or
 // process-arg backed.
 func (a *Agent) getWALFiles() (pg.WALFiles, error) {
-	// Rely on getWALFilesDB() or getWALFilesProcArgs() to update this value
-	a.metrics.SetTextValue(proc.MetricsWALLookupMode, "error")
 
 	var dbErr error
 	var walFiles pg.WALFiles
@@ -375,8 +346,6 @@ func (a *Agent) getWALFiles() (pg.WALFiles, error) {
 			return nil, newWALError(raisedErr, true, true)
 		}
 	}
-
-	a.metrics.SetGauge(metrics.WALFileCandidate, len(walFiles))
 
 	return walFiles, nil
 }

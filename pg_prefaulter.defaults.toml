@@ -16,7 +16,7 @@
 
 [postgresql.xlog]
 #mode = "pg"
-#pg_xlogdump-path = "/usr/local/bin/pg_xlogdump"
+#pg_waldump-path = "/usr/local/bin/pg_waldump"
 
 [run]
 # log-format specifies the type of logs to emit.  Valid log formats include:
@@ -25,8 +25,6 @@
 #   on whether or not stdout is a TTY.  If stdout is a TTY, "auto" will
 #   automatically change to "human", otherwise it will select "json."
 # * "json" - Zerolog default JSON output
-# * "bunyan" - Joyent's Bunyan logging format:
-#   https://www.npmjs.com/package/bunyan
 # * "human" - Human-friendly log output
 #log-format = "auto"
 #
@@ -36,34 +34,3 @@
 # use-color changes its default depending on whether or not stdout is a TTY.
 # If stdout is a TTY the default changes to true.
 #use-color = false
-
-[circonus]
-#debug = false
-#enabled = true
-
-[circonus.api]
-# token is a required value if circonus.enabled=true
-#token = ""
-#url = "https://api.circonus.com/v2"
-
-[circonus.broker]
-# id should be set to "35" (the public HTTPTrap broker) if you have enterprise
-# brokers configured in your account.
-#id = 35
-#max_response_time = "500ms"
-#select_tag = ""
-
-[circonus.check]
-#display_name = "pg_prefaulter"
-#force_metric_activation = false
-#id = ""
-#instance_id = ""
-#max_url_age = "5m"
-#search_tag = ""
-#secret = ""
-#submission_url = ""
-#tags = ""
-#target_host = "$HOSTNAME"
-
-[google.agent]
-#enabled = true

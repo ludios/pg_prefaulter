@@ -14,8 +14,8 @@
 package agent
 
 import (
-	"github.com/joyent/pg_prefaulter/agent/proc"
-	"github.com/joyent/pg_prefaulter/pg"
+	"github.com/bschofield/pg_prefaulter/agent/proc"
+	"github.com/bschofield/pg_prefaulter/pg"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -34,7 +34,7 @@ func (a *Agent) getWALFilesProcArgs() (walFiles pg.WALFiles, err error) {
 		return nil, errors.Wrap(err, "unable to find any PostgreSQL child processes")
 	}
 
-	walFile, err := proc.FindWALFileFromPIDArgs(a.shutdownCtx, childPIDs, a.metrics)
+	walFile, err := proc.FindWALFileFromPIDArgs(a.shutdownCtx, childPIDs)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to find a WAL file from pids")
 	}

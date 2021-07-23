@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/units"
-	"github.com/joyent/pg_prefaulter/pg"
+	"github.com/bschofield/pg_prefaulter/pg"
 	"github.com/kylelemons/godebug/pretty"
 )
 

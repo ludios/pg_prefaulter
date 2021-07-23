@@ -17,9 +17,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joyent/pg_prefaulter/agent"
-	"github.com/joyent/pg_prefaulter/buildtime"
-	"github.com/joyent/pg_prefaulter/config"
+	"github.com/bschofield/pg_prefaulter/agent"
+	"github.com/bschofield/pg_prefaulter/buildtime"
+	"github.com/bschofield/pg_prefaulter/config"
 	"github.com/pkg/errors"
 	log "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -171,13 +171,13 @@ func init() {
 	{
 		const (
 			key       = config.KeyXLogPath
-			longName  = "xlogdump-bin"
+			longName  = "waldump-bin"
 			shortName = "x"
 			// TODO(seanc@): This could/should probably be a build-time constant that
 			// is platform specific.  Similarly, there should probably be a path that
 			// is independent of the binary name.
-			defaultValue = "/usr/local/bin/pg_xlogdump"
-			description  = "Path to pg_xlogdump(1)"
+			defaultValue = "/usr/local/bin/pg_waldump"
+			description  = "Path to pg_waldump(1)"
 		)
 
 		runCmd.Flags().StringP(longName, shortName, defaultValue, description)
@@ -191,7 +191,7 @@ func init() {
 			longName     = "xlog-mode"
 			shortName    = "X"
 			defaultValue = "pg"
-			description  = `pg_xlogdump(1) variant: "xlog" or "pg"`
+			description  = `pg_waldump(1) variant: "xlog" or "pg"`
 		)
 		runCmd.Flags().StringP(longName, shortName, defaultValue, description)
 		viper.BindPFlag(key, runCmd.Flags().Lookup(longName))

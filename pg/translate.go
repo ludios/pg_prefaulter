@@ -18,20 +18,20 @@ import (
 )
 
 type WALTranslations struct {
-	Major    uint64
-	Directory  string
-	Lsn        string
-	Wal        string
-	Queries    WALQueries
+	Major     uint64
+	Directory string
+	Lsn       string
+	Wal       string
+	Queries   WALQueries
 }
 
 type WALQueries struct {
-	OldestLSNs   string
-	LagPrimary   string
-	LagFollower  string
+	OldestLSNs  string
+	LagPrimary  string
+	LagFollower string
 }
 
-func Translate(pgMajor uint64) (WALTranslations) {
+func Translate(pgMajor uint64) WALTranslations {
 	var translations WALTranslations
 	var translateHorizon uint64 = 100000 // PostgreSQL version 10
 
@@ -69,7 +69,7 @@ func Translate(pgMajor uint64) (WALTranslations) {
 		translations.Directory = "pg_wal"
 		translations.Lsn = "lsn"
 		translations.Wal = "wal"
-		queries.OldestLSNs = "SELECT timeline_id, redo_lsn, pg_last_wal_receive_lsn() FROM pg_control_checkpoint()"
+		queries.OldestLSNs = "SELECT timeline_id, redo_lsn, pg_last_wal_replay_lsn() FROM pg_control_checkpoint()"
 	}
 
 	queries.LagPrimary = fmt.Sprintf(lagPrimaryFmt, translations.Lsn, translations.Wal)

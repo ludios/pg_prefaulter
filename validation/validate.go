@@ -192,7 +192,7 @@ func parseLine(line string) (in traceKey, err error) {
 			"pg_control",
 			"pg_filenode",
 			"pg_internal",
-			"pg_xlogdump",
+			"pg_waldump",
 			"postmaster",
 			"xlogtemp":
 			return traceKey{}, nil

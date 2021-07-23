@@ -19,7 +19,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 )
 
-func TestPGXLogDumpRE(t *testing.T) {
+func TestPGWalDumpRE(t *testing.T) {
 	tests := []struct {
 		version      string
 		input        []byte
@@ -56,7 +56,7 @@ func TestPGXLogDumpRE(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		xlogRE := pgXLogDumpRE.Copy()
+		xlogRE := pgWalDumpRE.Copy()
 		submatches := xlogRE.FindAllSubmatch(test.input, -1)
 		if submatches == nil && !test.fail {
 			t.Fatalf("%d failed to match test: %q", i, test.input)

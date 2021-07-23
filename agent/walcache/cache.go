@@ -44,13 +44,13 @@ import (
 //                          ^^^^^ ------------- Database ID
 //                                ^^^^ -------- Relation ID
 //                                         ^^ - Block Number
-var pgXLogDumpRE = regexp.MustCompile(`rel ([\d]+)/([\d]+)/([\d]+) (?:fork [^\s]+ )?blk ([\d]+)`)
+var pgWalDumpRE = regexp.MustCompile(`rel ([\d]+)/([\d]+)/([\d]+) (?:fork [^\s]+ )?blk ([\d]+)`)
 
-// https://github.com/snaga/xlogdump
+// https://github.com/snaga/waldump
 //
 // [cur:CC/DFFF7C8, xid:448891062, rmid:11(Btree), len/tot_len:66/98, info:0, prev:C3/4FFF758] insert_leaf: s/d/r:1663/16385/16442 tid 1317010/91
 // [cur:C4/70, xid:450806558, rmid:10(Heap), len/tot_len:737/769, info:0, prev:C4/20] insert: s/d/r:1663/16385/16431 blk/off:32400985/3 header: t_infomask2 12 t_infomask 2051 t_hoff 32
-var xlogdumpRE = regexp.MustCompile(`s/d/r:([\d]+)/([\d]+)/([\d]+) (?:tid |blk/off:)([\d]+)`)
+var waldumpRE = regexp.MustCompile(`s/d/r:([\d]+)/([\d]+)/([\d]+) (?:tid |blk/off:)([\d]+)`)
 
 // ConnContextAcquirer is an helper interface passed in by the agent and used to
 // defeat cyclic import restrictions.
@@ -107,9 +107,9 @@ func New(pgConnCtxAcquirer ConnContextAcquirer, shutdownCtx context.Context,
 
 	switch cfg.WALCacheConfig.Mode {
 	case config.WALModeXLog:
-		wc.re = xlogdumpRE.Copy()
+		wc.re = waldumpRE.Copy()
 	case config.WALModePG:
-		wc.re = pgXLogDumpRE.Copy()
+		wc.re = pgWalDumpRE.Copy()
 	default:
 		panic(fmt.Sprintf("unsupported WALConfig.mode: %v", cfg.WALCacheConfig.Mode))
 	}
@@ -257,12 +257,12 @@ func (wc *WALCache) Wait() {
 	wc.ioCache.Wait()
 }
 
-// prefaultWALFile shells out to pg_xlogdump(1) and reads its input.  The input
-// from pg_xlogdump(1) is then turned into IO requests that are picked up and
+// prefaultWALFile shells out to pg_waldump(1) and reads its input.  The input
+// from pg_waldump(1) is then turned into IO requests that are picked up and
 // handled by the ioCache.
 func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
 	re := wc.re.Copy()
-	var blocksMatched, linesMatched, linesScanned, walFilesProcessed, xlogdumpBytes uint64
+	var blocksMatched, linesMatched, linesScanned, walFilesProcessed, waldumpBytes uint64
 	var ioCacheHit, ioCacheMiss uint64
 
 	walFileAbs := path.Join(wc.cfg.PGDataPath, wc.walTranslations.Directory, string(walFile))
@@ -273,17 +273,17 @@ func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
 	}
 
 	cmd := exec.CommandContext(wc.pgConnCtxAcquirer.AcquireConnContext(),
-		wc.cfg.XLogDumpPath, "-f", walFileAbs)
+		wc.cfg.WalDumpPath, "-f", walFileAbs)
 	var errbuf bytes.Buffer
 	cmd.Stderr = &errbuf
 
 	var dumpOutReader io.ReadCloser
 	dumpOutReader, err = cmd.StdoutPipe()
 	if err != nil {
-		return errors.Wrapf(err, "unable to open stdout for pg_xlogdump(1): %q", errbuf.String())
+		return errors.Wrapf(err, "unable to open stdout for pg_waldump(1): %q", errbuf.String())
 	}
 	if err := cmd.Start(); err != nil {
-		return errors.Wrapf(err, "unable to read from pg_xlogdump(1): %q", errbuf.String())
+		return errors.Wrapf(err, "unable to read from pg_waldump(1): %q", errbuf.String())
 	}
 
 	scanner := bufio.NewScanner(dumpOutReader)
@@ -294,7 +294,7 @@ func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
 
 		for scanner.Scan() {
 			line := scanner.Bytes()
-			xlogdumpBytes = atomic.AddUint64(&xlogdumpBytes, uint64(len(line)))
+			waldumpBytes = atomic.AddUint64(&waldumpBytes, uint64(len(line)))
 			linesScanned = atomic.AddUint64(&linesScanned, 1)
 			submatches := re.FindAllSubmatch(line, -1)
 			if submatches == nil {
@@ -390,24 +390,24 @@ func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
 		log.Warn().Err(err).Str("stderr", errbuf.String()).Msg("scanning output")
 	}
 
-	// pg_xlogdump(1) can return 1 when it has problems decoding output.  Notably
+	// pg_waldump(1) can return 1 when it has problems decoding output.  Notably
 	// this can occur with corrupt or records that can't be parsed fully.  For
 	// instance:
 	//
-	// pg_xlogdump: FATAL:  error in WAL record at C/A15FD930: record with incorrect prev-link 61313664/37303561 at C/A15FD968
+	// pg_waldump: FATAL:  error in WAL record at C/A15FD930: record with incorrect prev-link 61313664/37303561 at C/A15FD968
 	//
 	// As such, only bail if we have an error and we didn't process any records.
 	// We always log when there is stderr output, however, so the error handling
 	// of Wait is deferred until after the logging and metrics.
 	waitErr := cmd.Wait()
 
-	// For whatever reason pg_xlogdump(1) had stderr output.  It's
-	// entirely plausible, even likely, that pg_xlogdump(1) threw some
+	// For whatever reason pg_waldump(1) had stderr output.  It's
+	// entirely plausible, even likely, that pg_waldump(1) threw some
 	// output to stderr and yet the prefaulter still produced useful
 	// results.
 	if len(errbuf.String()) > 0 {
 		log.Warn().Err(waitErr).
-			Str("pg_xlogdump-path", wc.cfg.XLogDumpPath).
+			Str("pg_waldump-path", wc.cfg.WalDumpPath).
 			Str("walfile", walFileAbs).
 			Str("stderr", errbuf.String()).
 			Uint64("blocks-matched", atomic.LoadUint64(&blocksMatched)).
@@ -416,13 +416,13 @@ func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
 			Uint64("iocache-miss", atomic.LoadUint64(&ioCacheMiss)).
 			Uint64("lines-matched", atomic.LoadUint64(&linesMatched)).
 			Uint64("lines-scanned", atomic.LoadUint64(&linesScanned)).
-			Uint64("pg_xlogdump-bytes", atomic.LoadUint64(&xlogdumpBytes)).
-			Msg("pg_xlogdump(1) stderr")
+			Uint64("pg_waldump-bytes", atomic.LoadUint64(&waldumpBytes)).
+			Msg("pg_waldump(1) stderr")
 	}
 
 	if waitErr == nil {
 		return nil
 	}
 
-	return errors.Wrapf(waitErr, "pg_xlogdump(1) returned uncleanly when reading %+q or running %+q: %+q", walFileAbs, wc.cfg.XLogDumpPath, errbuf.String())
+	return errors.Wrapf(waitErr, "pg_waldump(1) returned uncleanly when reading %+q or running %+q: %+q", walFileAbs, wc.cfg.WalDumpPath, errbuf.String())
 }

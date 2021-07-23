@@ -33,7 +33,7 @@ const (
 	KeyWALThreads   = "postgresql.wal.threads"
 
 	KeyXLogMode = "postgresql.xlog.mode"
-	KeyXLogPath = "postgresql.xlog.pg_xlogdump-path"
+	KeyXLogPath = "postgresql.xlog.pg_waldump-path"
 )
 
 const (
@@ -42,19 +42,19 @@ const (
 	MetricsIOCacheHit      = "ioc-hit"
 	MetricsIOCacheMiss     = "ioc-miss"
 
-	MetricsSysCloseCount      = "fh-sys-close-count"
-	MetricsSysOpenCount       = "fh-sys-open-count"
-	MetricsSysOpenLatency     = "fh-sys-open-us"
-	MetricsSysPreadBytes      = "fh-sys-pread-bytes"
-	MetricsXLogDumpErrorCount = "fh-xlogdump-error-count"
+	MetricsSysCloseCount     = "fh-sys-close-count"
+	MetricsSysOpenCount      = "fh-sys-open-count"
+	MetricsSysOpenLatency    = "fh-sys-open-us"
+	MetricsSysPreadBytes     = "fh-sys-pread-bytes"
+	MetricsWalDumpErrorCount = "fh-waldump-error-count"
 
-	MetricsWALFaultCount         = "wal-file-fault-count"
-	MetricsWALFaultTime          = "wal-file-fault-time"
-	MetricsXLogDumpLen           = "wal-xlogdump-out-len"
-	MetricsXLogDumpBlocksMatched = "wal-xlogdump-blocks-matched"
-	MetricsXLogDumpLinesMatched  = "wal-xlogdump-lines-matched"
-	MetricsXLogDumpLinesScanned  = "wal-xlogdump-lines-scanned"
-	MetricsXLogPrefaulted        = "wal-xlog-prefaulted-count"
+	MetricsWALFaultCount        = "wal-file-fault-count"
+	MetricsWALFaultTime         = "wal-file-fault-time"
+	MetricsWalDumpLen           = "wal-waldump-out-len"
+	MetricsWalDumpBlocksMatched = "wal-waldump-blocks-matched"
+	MetricsWalDumpLinesMatched  = "wal-waldump-lines-matched"
+	MetricsWalDumpLinesScanned  = "wal-waldump-lines-scanned"
+	MetricsXLogPrefaulted       = "wal-xlog-prefaulted-count"
 )
 
 const (

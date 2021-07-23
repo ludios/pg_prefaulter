@@ -74,7 +74,7 @@ type WALCacheConfig struct {
 	Mode           WALMode
 	ReadaheadBytes units.Base2Bytes
 	PGDataPath     string
-	XLogDumpPath   string
+	WalDumpPath    string
 }
 
 func NewDefault() (cfg *Config, err error) {
@@ -194,7 +194,7 @@ func NewDefault() (cfg *Config, err error) {
 			walConfig.ReadaheadBytes = readAheadBytes
 		}
 
-		walConfig.XLogDumpPath = viper.GetString(KeyXLogPath)
+		walConfig.WalDumpPath = viper.GetString(KeyXLogPath)
 	}
 
 	return &Config{

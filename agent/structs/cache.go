@@ -19,7 +19,7 @@ import "github.com/bschofield/pg_prefaulter/pg"
 // IOCacheKey is a
 // [comparable](https://golang.org/ref/spec#Comparison_operators) struct
 // suitable for use as a lookup key.  These values are immutable and map 1:1
-// with the string inputs read from the pg_xlogdump(1) scanning utility.
+// with the string inputs read from the pg_waldump(1) scanning utility.
 type IOCacheKey struct {
 	Tablespace pg.OID
 	Database   pg.OID

@@ -185,7 +185,7 @@ RETRY:
 
 		// 2) Sleep.  Sleep before purging the WALCache in order to allow processes
 		//    in flight to complete.  If the sleep is not called before the purge,
-		//    it's possible that an in-flight pg_xlogdump(1) would be cancelled
+		//    it's possible that an in-flight pg_waldump(1) would be cancelled
 		//    before it completed a run.  This means that during an unexpected
 		//    shutdown, FDs won't be closed for up to config.KeyPGPollInterval.
 		if !sleepBetweenIterations {

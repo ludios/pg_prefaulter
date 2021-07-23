@@ -52,7 +52,7 @@ when the filesystem cache is cold, this is problematic for streaming replicas
 because they will lag and fall behind.
 
 ` + buildtime.PROGNAME + `(1) mitigates this serially scheduled IO problem by
-reading WAL entries via pg_xlogdump(1) and performing parallel pread(2) calls in
+reading WAL entries via pg_waldump(1) and performing parallel pread(2) calls in
 order to "pre-fault" the page into the OS's filesystem cache so that when the
 PostgreSQL WAL receiver goes to apply a WAL entry to its heap, the page is
 already loaded into the OS'es filesystem cache.

@@ -11,4 +11,4 @@
 #user = "postgres"
 
 [postgresql.xlog]
-#pg_xlogdump-path = "/usr/local/bin/pg_xlogdump"
+#pg_waldump-path = "/usr/local/bin/pg_waldump"

@@ -118,7 +118,7 @@ already loaded into the OS'es filesystem cache.
 				}
 				zlog = zerolog.New(w).With().Timestamp().Logger()
 			default:
-				return fmt.Errorf("unsupported log format: %q")
+				return fmt.Errorf("unsupported log format: %q", logFmt)
 			}
 
 			log.Logger = zlog

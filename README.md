@@ -6,4 +6,4 @@ To build,
 
     go build -o pg_prefaulter main.go
 
-Please see the [original README](https://github.com/joyent/pg_prefaulter/README.adoc) for motivation and further usage instructions.
+Please see the [original README](https://github.com/joyent/pg_prefaulter/blob/master/README.adoc) for motivation and further usage instructions.

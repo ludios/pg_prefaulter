@@ -1,4 +1,4 @@
-This is a brutally butchered version of Joyent's [pg_prefaulter](https://github.com/joyent/pg_prefaulter).
+This is a butchered version of Joyent's [pg_prefaulter](https://github.com/joyent/pg_prefaulter).
 
 Metrics removed, go modules added and some minor edits to the code to pass _staticcheck_ linting.
 

@@ -123,6 +123,8 @@ func NewDefault() (cfg *Config, err error) {
 			}
 			fhConfig.MaxOpenFiles = uint(procNumFiles.Cur)
 			fhConfig.Size = fhConfig.MaxOpenFiles - numReservedFDs
+
+			//lint:ignore SA9003 TODO below
 		} else {
 			// TODO(seanc@): Allow a user to set this value manually
 		}

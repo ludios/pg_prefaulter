@@ -36,6 +36,3 @@
 # use-color changes its default depending on whether or not stdout is a TTY.
 # If stdout is a TTY the default changes to true.
 #use-color = false
-
-[google.agent]
-#enabled = true

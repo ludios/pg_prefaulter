@@ -9,8 +9,6 @@ import (
 )
 
 const (
-	KeyGoogleAgentEnable = "google.agent.enabled"
-
 	KeyLogLevel = "log.level"
 
 	KeyAgentLogFormat = "run.log-format"

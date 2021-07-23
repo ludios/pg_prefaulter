@@ -24,7 +24,6 @@ import (
 
 	"github.com/bschofield/pg_prefaulter/buildtime"
 	"github.com/bschofield/pg_prefaulter/config"
-	"github.com/google/gops/agent"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -145,18 +144,6 @@ already loaded into the OS'es filesystem cache.
 			return fmt.Errorf("unsupported error level: %q (supported levels: %s)", logLevel,
 				strings.Join([]string{"DEBUG", "INFO", "WARN", "ERROR", "FATAL"}, " "))
 		}
-
-		go func() {
-			if !viper.GetBool(config.KeyGoogleAgentEnable) {
-				log.Debug().Msg("gops(1) agent disabled by request")
-				return
-			}
-
-			log.Debug().Msg("starting gops(1) agent")
-			if err := agent.Listen(nil); err != nil {
-				log.Fatal().Err(err).Msg("unable to start the gops(1) agent thread")
-			}
-		}()
 
 		go func() {
 			if !viper.GetBool(config.KeyPProfEnable) {
@@ -332,20 +319,6 @@ func init() {
 		)
 
 		viper.BindEnv(key, envVar)
-		viper.SetDefault(key, defaultValue)
-	}
-
-	{
-		const (
-			key          = config.KeyGoogleAgentEnable
-			longName     = "enable-agent"
-			shortName    = ""
-			defaultValue = true
-			description  = "Enable the gops(1) agent interface"
-		)
-
-		RootCmd.PersistentFlags().BoolP(longName, shortName, defaultValue, description)
-		viper.BindPFlag(key, RootCmd.PersistentFlags().Lookup(longName))
 		viper.SetDefault(key, defaultValue)
 	}
 

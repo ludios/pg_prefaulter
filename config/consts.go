@@ -35,27 +35,6 @@ const (
 )
 
 const (
-	MetricsSysPreadLatency = "ioc-sys-pread-ms"
-	MetricsPrefaultCount   = "ioc-prefault-count"
-	MetricsIOCacheHit      = "ioc-hit"
-	MetricsIOCacheMiss     = "ioc-miss"
-
-	MetricsSysCloseCount     = "fh-sys-close-count"
-	MetricsSysOpenCount      = "fh-sys-open-count"
-	MetricsSysOpenLatency    = "fh-sys-open-us"
-	MetricsSysPreadBytes     = "fh-sys-pread-bytes"
-	MetricsWalDumpErrorCount = "fh-waldump-error-count"
-
-	MetricsWALFaultCount        = "wal-file-fault-count"
-	MetricsWALFaultTime         = "wal-file-fault-time"
-	MetricsWalDumpLen           = "wal-waldump-out-len"
-	MetricsWalDumpBlocksMatched = "wal-waldump-blocks-matched"
-	MetricsWalDumpLinesMatched  = "wal-waldump-lines-matched"
-	MetricsWalDumpLinesScanned  = "wal-waldump-lines-scanned"
-	MetricsXLogPrefaulted       = "wal-xlog-prefaulted-count"
-)
-
-const (
 	// Use a log format that resembles time.RFC3339Nano but includes all trailing
 	// zeros so that we get fixed-width logging.
 	LogTimeFormat = "2006-01-02T15:04:05.000000000Z07:00"

@@ -133,7 +133,6 @@ func (a *Agent) Start() {
 	a.pgStateLock.Unlock()
 
 	go a.handleSignals()
-	go a.startDBStats()
 
 	// The main event loop for the run command.  The run event loop runs through
 	// the following six steps:

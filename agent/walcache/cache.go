@@ -398,7 +398,7 @@ func (wc *WALCache) prefaultWALFile(walFile pg.WALFilename) (err error) {
 	//
 	// As such, only bail if we have an error and we didn't process any records.
 	// We always log when there is stderr output, however, so the error handling
-	// of Wait is deferred until after the logging and metrics.
+	// of Wait is deferred until after the logging.
 	waitErr := cmd.Wait()
 
 	// For whatever reason pg_waldump(1) had stderr output.  It's

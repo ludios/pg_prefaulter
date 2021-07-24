@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/bluele/gcache"
-	"github.com/bschofield/pg_prefaulter/agent/metrics"
 	"github.com/bschofield/pg_prefaulter/agent/structs"
 	"github.com/bschofield/pg_prefaulter/config"
 	"github.com/bschofield/pg_prefaulter/lib"
@@ -115,12 +114,10 @@ func (fhc *FileHandleCache) PrefaultPage(ioCacheKey structs.IOCacheKey) error {
 
 	numConcurrentReadLock.Lock()
 	numConcurrentReads++
-	metrics.FHStats.NumConcurrentReads.Set(numConcurrentReads)
 	numConcurrentReadLock.Unlock()
 	defer func() {
 		numConcurrentReadLock.Lock()
 		numConcurrentReads--
-		metrics.FHStats.NumConcurrentReads.Set(numConcurrentReads)
 		numConcurrentReadLock.Unlock()
 	}()
 

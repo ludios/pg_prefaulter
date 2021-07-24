@@ -22,10 +22,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/alecthomas/units"
-	"github.com/bschofield/pg_prefaulter/agent/metrics"
 	"github.com/bschofield/pg_prefaulter/agent/proc"
 	"github.com/bschofield/pg_prefaulter/config"
 	"github.com/bschofield/pg_prefaulter/pg"
@@ -98,16 +96,11 @@ func (a *Agent) dbState() (_DBState, error) {
 		return _DBStateUnknown, errors.Wrap(err, "unable to execute primary check")
 	}
 
-	switch inRecovery {
-	case true:
-		metrics.DBStats.DBState.Set("follower")
+	if inRecovery {
 		return _DBStateFollower, nil
-	case false:
-		metrics.DBStats.DBState.Set("primary")
-		return _DBStatePrimary, nil
-	default:
-		panic("what is logic?")
 	}
+
+	return _DBStatePrimary, nil
 }
 
 // ensureDBPool creates a new database connection pool.  If the connection fails
@@ -346,27 +339,6 @@ func (a *Agent) predictDBWALFilenames(walFile pg.WALFilename) ([]pg.WALFilename,
 	}
 
 	return lsn.Readahead(timelineID, maxBytes), nil
-}
-
-// startDBStats is a periodic stats routine that emits stats regarding the
-// database to the log files.
-func (a *Agent) startDBStats() {
-	for {
-		select {
-		case <-a.shutdownCtx.Done():
-			return
-		case <-time.After(config.StatsInterval):
-			log.Debug().
-				Str(metrics.DBSenderState, metrics.DBStats.SenderState.Value()).
-				Str(metrics.DBState, metrics.DBStats.DBState.Value()).
-				Str(metrics.DBPeerSyncState, metrics.DBStats.PeerSyncState.Value()).
-				Int64(metrics.DBLagDurabilityBytes, metrics.DBStats.DurabilityLagBytes.Value()).
-				Int64(metrics.DBLagFlushBytes, metrics.DBStats.FlushLagBytes.Value()).
-				Int64(metrics.DBLagVisibilityBytes, metrics.DBStats.VisibilityLagBytes.Value()).
-				Dur(metrics.DBLagVisibilityMs, time.Duration(metrics.DBStats.VisibilityLagMs.Value())).
-				Msg("db-stats")
-		}
-	}
 }
 
 // getPostgresVersion reads PG_VERSION in the provided data path, parses its value, and

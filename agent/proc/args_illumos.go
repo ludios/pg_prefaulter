@@ -67,7 +67,6 @@ func FindWALFileFromPIDArgs(ctx context.Context, pids []PID) (walFilename pg.WAL
 		}
 
 		if walFilename != "" {
-			metrics.SetTextValue(MetricsWALLookupMode, pidSearch.name)
 			return walFilename, nil
 		}
 	}

@@ -18,7 +18,7 @@ Please see the [original README](https://github.com/joyent/pg_prefaulter/blob/ma
 
 * Fixed an issue where in pg10+, the code would attempt to prefault files just ahead of the WAL files most recently received, instead of files just ahead of latest WAL files most recently replayed.
 
-* Using an Intel Optane device, I seem to get best results with a small number of IO threads (4 or 8).
+* Using an Intel Optane device, I seem to get best results with a small number of IO threads.
 
 * I see regular errors due to SQL conflicts with recovery. WAL prefetch would be much better handled inside postgres itself. They're [thinking about it](https://www.postgresql.org/message-id/flat/20200324223152.v5qrjmjjo4aukktk%40alap3.anarazel.de#9214c5715fdd613bd62abf58f7b6b15e), but it seems it won't land until at least pg15.
 

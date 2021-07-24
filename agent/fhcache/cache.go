@@ -15,7 +15,6 @@ package fhcache
 
 import (
 	"context"
-	"io"
 	"sync"
 	"time"
 
@@ -121,20 +120,8 @@ func (fhc *FileHandleCache) PrefaultPage(ioCacheKey structs.IOCacheKey) error {
 		numConcurrentReadLock.Unlock()
 	}()
 
-	var buf [pg.HeapPageSize]byte
 	pageNum := pg.HeapSegmentPageNum(ioCacheKey.Block)
-	_, err = fhcValue.f.ReadAt(buf[:], int64(uint64(pageNum)*uint64(pg.HeapPageSize)))
-	if err != nil {
-		// TODO(seanc@): Figure out why there are any EOFs being returned.  They
-		// seem harmless, but indicate a different problem that requires
-		// investigation.  If the hit rate didn't indicate a high degree of
-		// efficacy, this would require more immediate investigation.
-		if err != io.EOF {
-			return errors.Wrap(err, "unable to pread(2)")
-		}
-
-		return nil
-	}
+	Fadvise(int(fhcValue.f.Fd()), int64(uint64(pageNum)*uint64(pg.HeapPageSize)), int64(pg.HeapPageSize))
 
 	return nil
 }

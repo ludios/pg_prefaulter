@@ -164,7 +164,7 @@ func NewDefault() (cfg *Config, err error) {
 			ioCacheSize uint = 100 * uint(pg.WALSegmentSize/pg.WALPageSize)
 		)
 
-		if viper.IsSet(KeyNumIOThreads) || viper.GetInt(KeyNumIOThreads) == 0 {
+		if !viper.IsSet(KeyNumIOThreads) || viper.GetInt(KeyNumIOThreads) == 0 {
 			ioConfig.MaxConcurrentIOs = defaultMaxConcurrentIOs
 		} else {
 			ioConfig.MaxConcurrentIOs = uint(viper.GetInt(KeyNumIOThreads))
